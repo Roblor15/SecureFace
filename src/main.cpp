@@ -1,7 +1,6 @@
 #include "esp32-hal-log.h"
 #include "freertos/portmacro.h"
 #include "freertos/projdefs.h"
-#include "sys/_stdint.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <cstddef>
@@ -38,7 +37,9 @@
 // #define LED 4
 
 // Number of frames per video
-#define N_FRAMES 200
+#define N_VIDEO_FRAMES 200
+
+#define N_RECOGNITION_FRAMES 10
 
 // Dimension of CircularBuffer
 #define N_BUF 120
@@ -46,40 +47,34 @@
 // Bitmask (pin 12) if pins used to wake up
 #define BUTTON_PIN_BITMASK 0x000001000
 
+typedef enum Purpose
+{
+  Video,
+  Recognition,
+  Both
+} Purpose;
+
 typedef struct Photo
 {
   uint8_t *buffer;
   size_t len;
 } Photo;
 
-typedef struct TaskParameters
+typedef struct PhotoSend
 {
-  int queue;
-  uint16_t host_port;
-} TaskParameters;
+  Photo *photo;
+  Purpose purpose;
+} PhotoSend;
 
 void setupCamera();
 void task_0_function(void *);
 void photo_deallocator(Photo *p);
 void copy_buffer(uint8_t *dst, uint8_t *src, size_t len);
-void task_send(void *argv);
 
-// Counter for frames
-int i = 0;
-
-// Boolean value that indicate when send photos
-bool send = true;
-// Boolean value that indicate if task_0 has finished
-bool finished = false;
-
-// buffer for saving photos while sending them
-// CircularBuffer<Photo *> buffer(N_BUF, photo_deallocator, true);
-// 0: Video Queue | 1:Photo Queue
-QueueHandle_t queues[2];
+// Queue for sending phtos from a task to the other
+QueueHandle_t photo_queues;
 
 TaskHandle_t task_0;
-TaskHandle_t task_video;
-TaskHandle_t task_photo;
 
 UltraSonicDistanceSensor distanceSensor(13, 12);
 
@@ -87,84 +82,47 @@ void setup()
 {
   Serial.begin(115200);
 
-  queues[0] = xQueueCreate(120, sizeof(Photo *));
-  queues[1] = xQueueCreate(10, sizeof(Photo *));
+  photo_queues = xQueueCreate(N_BUF, sizeof(PhotoSend *));
 
   // pinMode(LED, OUTPUT);
 
   esp_sleep_enable_ext1_wakeup(BUTTON_PIN_BITMASK, ESP_EXT1_WAKEUP_ANY_HIGH);
 
-  xTaskCreate(
+  xTaskCreatePinnedToCore(
       task_0_function,
-      "Invio photo",
-      3500,
+      "Send photo",
+      5000,
       NULL,
       0,
-      &task_0);
+      &task_0,
+      0);
 
   setupCamera();
 
   delay(1000);
 }
 
+// Counter for video frames
+int video_count = 0;
+
+// Boolean value that indicate when send photos
+bool send = true;
+// Boolean value that indicate if task_0 has finished
+bool finished = false;
+
 unsigned long message_timestamp = 0;
 unsigned long finished_time = 0;
 
+uint8_t recognition_count = 0;
+
 void loop()
 {
-  //double distance = distanceSensor.measureDistanceCm(20);
-  //Serial.println(distance);
   uint64_t now = millis();
-  if (distanceSensor.measureDistanceCm(20) > PHOTO_TRIGGER) {
-    if (send && now - message_timestamp > 100)
-    {
-      message_timestamp = now;
 
-      camera_fb_t *fb = nullptr;
+  if (send && now - message_timestamp > 100)
+  {
+    message_timestamp = now;
 
-      fb = esp_camera_fb_get();
-      if (!fb)
-      {
-        Serial.println("Camera capture failed");
-        ESP.restart();
-        return;
-      }
-
-      Photo *p = (Photo *)ps_malloc(sizeof(Photo));
-      log_d("%d", p);
-      p->buffer = (uint8_t *)ps_malloc(sizeof(uint8_t) * fb->len);
-      copy_buffer(p->buffer, fb->buf, fb->len);
-      p->len = fb->len;
-
-      esp_camera_fb_return(fb);
-
-      // buffer.push(p);
-      log_d("len %d", p->len);
-      xQueueSend(queues[0], (void *) &p, 20000);
-
-      if (++i == N_FRAMES)
-      {
-        send = false;
-        finished_time = millis();
-      }
-    }
-    else if (finished)
-    {
-      vTaskDelete(task_0);
-      log_d("going to sleep");
-      delay(2000);
-      esp_deep_sleep_start();
-    }
-    else if (!send && now - finished_time > 60 * 2 * 1000)
-    {
-      vTaskDelete(task_0);
-      log_d("going to sleep");
-      delay(2000);
-      esp_deep_sleep_start();
-    }
-  }
-  else {
-    Serial.println("Riconoscimento");
     camera_fb_t *fb = nullptr;
 
     fb = esp_camera_fb_get();
@@ -181,7 +139,55 @@ void loop()
     copy_buffer(p->buffer, fb->buf, fb->len);
     p->len = fb->len;
 
-    xQueueSend(queues[1], (void *) &p, 20000);
+    esp_camera_fb_return(fb);
+
+    // buffer.push(p);
+    log_d("len %d", p->len);
+
+    PhotoSend *photo_send = (PhotoSend *)ps_malloc(sizeof(PhotoSend));
+    photo_send->photo = p;
+
+    log_d("prova");
+    if (recognition_count || distanceSensor.measureDistanceCm(25) < 20)
+    {
+      log_d("invio recognition");
+      photo_send->purpose = Purpose::Recognition;
+      ++recognition_count;
+    }
+    else
+    {
+      log_d("invio video");
+      photo_send->purpose = Purpose::Video;
+      ++video_count;
+    }
+
+    if (!xQueueSend(photo_queues, (void *)&photo_send, 10000 / portTICK_PERIOD_MS))
+    {
+      vTaskDelete(task_0);
+      log_d("going to sleep");
+      delay(2000);
+      esp_deep_sleep_start();
+    }
+
+    if (video_count == N_VIDEO_FRAMES || recognition_count == N_RECOGNITION_FRAMES)
+    {
+      send = false;
+      finished_time = millis();
+    }
+  }
+  else if (finished)
+  {
+    vTaskDelete(task_0);
+    log_d("going to sleep");
+    delay(2000);
+    esp_deep_sleep_start();
+  }
+  else if (!send && now - finished_time > 60 * 2 * 1000)
+  {
+    vTaskDelete(task_0);
+    log_d("going to sleep");
+    delay(2000);
+    esp_deep_sleep_start();
   }
 }
 
@@ -225,13 +231,10 @@ void setupCamera()
 void task_0_function(void *pv)
 {
   // Constants depending on own connections
-  const char *ssid = WIFI_SSID;
-  const char *password = WIFI_PSW;
-
-  Serial.printf("Task 0 running on task %d\n", xPortGetCoreID());
+  log_d("Task 0 running on task %d\n", xPortGetCoreID());
 
   // Connect to Wi-Fi
-  WiFi.begin(ssid, password);
+  WiFi.begin(WIFI_SSID, WIFI_PSW);
   while (WiFi.status() != WL_CONNECTED)
   {
     delay(1000);
@@ -239,70 +242,31 @@ void task_0_function(void *pv)
   }
   Serial.println(WiFi.localIP());
 
-  TaskParameters taskParametersVideo;
-  taskParametersVideo.queue = 0;
-  taskParametersVideo.host_port = PORT_VIDEO;
+  WiFiClient video_client, recognition_client;
 
-  xTaskCreate(
-      task_send,
-      "Invio Video",
-      3500,
-      &taskParametersVideo,
-      5,
-      &task_video);
-
-  TaskParameters taskParametersPhoto;
-  taskParametersPhoto.queue = 1;
-  taskParametersPhoto.host_port = PORT_PHOTO;
-
-  xTaskCreate(
-      task_send,
-      "Invio Photo",
-      3500,
-      &taskParametersPhoto,
-      5,
-      &task_photo);
-}
-
-void copy_buffer(uint8_t *dst, uint8_t *src, size_t len)
-{
-  for (size_t j = 0; j < len; j++)
+  while (!video_client.connect(HOST, PORT_VIDEO))
   {
-    dst[j] = src[j];
-  }
-}
-
-void task_send(void *argv)
-{
-  WiFiClient client;
-  TaskParameters taskParameters = *(TaskParameters *)argv;
-  
-  QueueHandle_t queue = queues[taskParameters.queue];
-  uint16_t port = taskParameters.host_port;
-
-  Serial.println(port);
-
-  while (!client.connect(HOST, port))
-  {
-    Serial.println("Connecting to host");
-    delay(500);
-    // digitalWrite(LED, HIGH);
-    delay(500);
-    // digitalWrite(LED, LOW);
+    Serial.println("Connecting to video host");
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
 
-  Serial.printf("Connected to %s:%d\n", HOST, port);
+  while (!recognition_client.connect(HOST, PORT_VIDEO))
+  {
+    Serial.println("Connecting to recognition host");
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+  }
 
   for (;;)
   {
     log_d("%d", send);
-    Photo *p = NULL;
-    int r = xQueueReceive(queue, &(p), 10000);
+    PhotoSend *photo_send = nullptr;
+    int r = xQueueReceive(photo_queues, &(photo_send), 10000 / portTICK_PERIOD_MS);
     // if (send == false && !buffer.can_pop())
-    if (send == false && !r)
+    if (!r && send == false)
     {
       log_d("fine invio");
-      client.stop();
+      video_client.stop();
+      recognition_client.stop();
       while (!WiFi.disconnect(true, true))
       {
         log_d("disconnecting");
@@ -319,21 +283,54 @@ void task_send(void *argv)
     {
       log_d("pre invio");
       // Photo *p = buffer.pop();
-      if (r) {
+      if (r)
+      {
+        Photo *p = photo_send->photo;
         log_d("invio");
         log_d("len %d", p->len);
-        client.write(p->buffer, p->len);
-        log_d("inviato");
-        client.flush();
+
+        if (photo_send->purpose == Purpose::Video)
+        {
+          video_client.write(p->buffer, p->len);
+          log_d("inviato");
+          video_client.flush();
+        }
+        else if (photo_send->purpose == Purpose::Recognition)
+        {
+          recognition_client.write(p->buffer, p->len);
+          log_d("inviato");
+          recognition_client.flush();
+        }
+        else if (photo_send->purpose == Purpose::Both)
+        {
+          video_client.write(p->buffer, p->len);
+          video_client.flush();
+
+          recognition_client.write(p->buffer, p->len);
+          recognition_client.flush();
+
+          log_d("inviato");
+        }
+
         log_d("deallocator");
         photo_deallocator(p);
+        free(photo_send);
       }
-      else {
-          log_d("photo not available");
+      else
+      {
+        log_d("photo not available");
       }
     }
 
     vTaskDelay(20);
+  }
+}
+
+void copy_buffer(uint8_t *dst, uint8_t *src, size_t len)
+{
+  for (size_t j = 0; j < len; j++)
+  {
+    dst[j] = src[j];
   }
 }
 
