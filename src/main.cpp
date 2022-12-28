@@ -91,7 +91,7 @@ void setup()
   xTaskCreatePinnedToCore(
       task_0_function,
       "Send photo",
-      5000,
+      3500,
       NULL,
       0,
       &task_0,
@@ -134,7 +134,7 @@ void loop()
     }
 
     Photo *p = (Photo *)ps_malloc(sizeof(Photo));
-    log_d("%d", p);
+
     p->buffer = (uint8_t *)ps_malloc(sizeof(uint8_t) * fb->len);
     copy_buffer(p->buffer, fb->buf, fb->len);
     p->len = fb->len;
@@ -142,21 +142,22 @@ void loop()
     esp_camera_fb_return(fb);
 
     // buffer.push(p);
-    log_d("len %d", p->len);
+    log_d("len photo %d: %d", video_count + recognition_count, p->len);
+    log_d("heap : %d", ESP.getFreeHeap());
+    log_d("psram: %d", ESP.getFreePsram());
 
-    PhotoSend *photo_send = (PhotoSend *)ps_malloc(sizeof(PhotoSend));
+    PhotoSend *photo_send = new PhotoSend;
     photo_send->photo = p;
 
-    log_d("prova");
     if (recognition_count || distanceSensor.measureDistanceCm(25) < 20)
     {
-      log_d("invio recognition");
+      log_d("sending recognition");
       photo_send->purpose = Purpose::Recognition;
       ++recognition_count;
     }
     else
     {
-      log_d("invio video");
+      log_d("sending video");
       photo_send->purpose = Purpose::Video;
       ++video_count;
     }
@@ -260,11 +261,11 @@ void task_0_function(void *pv)
   {
     log_d("%d", send);
     PhotoSend *photo_send = nullptr;
-    int r = xQueueReceive(photo_queues, &(photo_send), 10000 / portTICK_PERIOD_MS);
+    int r = xQueueReceive(photo_queues, &(photo_send), 2 * 60 * 1000 / portTICK_PERIOD_MS);
     // if (send == false && !buffer.can_pop())
     if (!r && send == false)
     {
-      log_d("fine invio");
+      log_d("end sending");
       video_client.stop();
       recognition_client.stop();
       while (!WiFi.disconnect(true, true))
@@ -281,24 +282,21 @@ void task_0_function(void *pv)
     }
     else
     {
-      log_d("pre invio");
       // Photo *p = buffer.pop();
       if (r)
       {
         Photo *p = photo_send->photo;
-        log_d("invio");
-        log_d("len %d", p->len);
 
         if (photo_send->purpose == Purpose::Video)
         {
           video_client.write(p->buffer, p->len);
-          log_d("inviato");
+          log_d("sended video");
           video_client.flush();
         }
         else if (photo_send->purpose == Purpose::Recognition)
         {
           recognition_client.write(p->buffer, p->len);
-          log_d("inviato");
+          log_d("sended recognition");
           recognition_client.flush();
         }
         else if (photo_send->purpose == Purpose::Both)
@@ -309,7 +307,7 @@ void task_0_function(void *pv)
           recognition_client.write(p->buffer, p->len);
           recognition_client.flush();
 
-          log_d("inviato");
+          log_d("sended video and recognition");
         }
 
         log_d("deallocator");
