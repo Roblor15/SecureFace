@@ -8,11 +8,15 @@
 #include <HCSR04.h>
 // #include <CircularBuffer.h>
 
+#define VIDEO
+//  #define RECOGNITION
+
 #define WIFI_SSID "Lorenzon-Home"
 #define WIFI_PSW "DaMiAnO199411"
-#define HOST "raspberrypi"
+#define HOST "roblor-matebook"
 #define PORT_VIDEO 8080
 #define PORT_PHOTO 8081
+
 #define PHOTO_TRIGGER 30
 
 // Pin definition for CAMERA_MODEL_AI_THINKER
@@ -37,7 +41,7 @@
 // #define LED 4
 
 // Number of frames per video
-#define N_VIDEO_FRAMES 200
+#define N_VIDEO_FRAMES 150
 
 #define N_RECOGNITION_FRAMES 10
 
@@ -162,7 +166,7 @@ void loop()
       ++video_count;
     }
 
-    if (!xQueueSend(photo_queues, (void *)&photo_send, 10000 / portTICK_PERIOD_MS))
+    if (!xQueueSend(photo_queues, (void *)&photo_send, 2 * 60 * 1000 / portTICK_PERIOD_MS))
     {
       vTaskDelete(task_0);
       log_d("going to sleep");
@@ -243,31 +247,44 @@ void task_0_function(void *pv)
   }
   Serial.println(WiFi.localIP());
 
-  WiFiClient video_client, recognition_client;
+#ifdef VIDEO
+  WiFiClient video_client;
+#endif
+#ifdef RECOGNITION
+  WiFiClient recognition_client;
+#endif
 
+#ifdef VIDEO
   while (!video_client.connect(HOST, PORT_VIDEO))
   {
     Serial.println("Connecting to video host");
     vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
+#endif
 
+#ifdef RECOGNITION
   while (!recognition_client.connect(HOST, PORT_VIDEO))
   {
     Serial.println("Connecting to recognition host");
     vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
+#endif
 
   for (;;)
   {
     log_d("%d", send);
     PhotoSend *photo_send = nullptr;
-    int r = xQueueReceive(photo_queues, &(photo_send), 2 * 60 * 1000 / portTICK_PERIOD_MS);
+    int r = xQueueReceive(photo_queues, &(photo_send), 10 * 1000 / portTICK_PERIOD_MS);
     // if (send == false && !buffer.can_pop())
     if (!r && send == false)
     {
       log_d("end sending");
+#ifdef VIDEO
       video_client.stop();
+#endif
+#ifdef RECOGNITION
       recognition_client.stop();
+#endif
       while (!WiFi.disconnect(true, true))
       {
         log_d("disconnecting");
@@ -289,18 +306,24 @@ void task_0_function(void *pv)
 
         if (photo_send->purpose == Purpose::Video)
         {
+#ifdef VIDEO
           video_client.write(p->buffer, p->len);
           log_d("sended video");
           video_client.flush();
+#endif
         }
         else if (photo_send->purpose == Purpose::Recognition)
         {
+#ifdef RECOGNITION
           recognition_client.write(p->buffer, p->len);
           log_d("sended recognition");
           recognition_client.flush();
+#endif
         }
         else if (photo_send->purpose == Purpose::Both)
         {
+#ifdef RECOGNITION
+#ifdef VIDEO
           video_client.write(p->buffer, p->len);
           video_client.flush();
 
@@ -308,6 +331,8 @@ void task_0_function(void *pv)
           recognition_client.flush();
 
           log_d("sended video and recognition");
+#endif
+#endif
         }
 
         log_d("deallocator");
