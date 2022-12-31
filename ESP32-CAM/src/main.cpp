@@ -80,7 +80,7 @@ QueueHandle_t photo_queues;
 
 TaskHandle_t task_0;
 
-UltraSonicDistanceSensor distanceSensor(13, 12);
+UltraSonicDistanceSensor distanceSensor(13, 15);
 
 void setup()
 {

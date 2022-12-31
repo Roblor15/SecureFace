@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <signal.h>
 
 #define READ 0
 #define WRITE 1
@@ -14,10 +15,19 @@
 #define PORT 8080
 #define SA struct sockaddr
 
+void signal_handler(int signum);
+
+int sockfd = -1;
 // Driver function
 int main()
 {
-    int sockfd, connfd, len;
+    if (signal(SIGKILL, signal_handler) == SIG_ERR)
+        printf("can't intercept SIGKILL\n");
+
+    if (signal(SIGINT, signal_handler) == SIG_ERR)
+        printf("can't intercept SIGINT\n");
+
+    int connfd, len;
     struct sockaddr_in servaddr;
 
     // socket create and verification
@@ -28,7 +38,7 @@ int main()
         exit(0);
     }
     else
-        printf("Socket successfully created..\n");
+        printf("socket successfully created..\n");
     bzero(&servaddr, sizeof(servaddr));
 
     // assign IP, PORT
@@ -43,12 +53,12 @@ int main()
         exit(0);
     }
     else
-        printf("Socket successfully binded..\n");
+        printf("socket successfully binded..\n");
 
     // Now server is ready to listen and verification
     if ((listen(sockfd, 5)) != 0)
     {
-        printf("Listen failed...\n");
+        printf("listen failed...\n");
         exit(0);
     }
     else
@@ -59,9 +69,9 @@ int main()
     for (;;)
     {
         struct sockaddr_in cli;
-
+        len = sizeof(cli);
         // Accept the data packet from client and verification
-        connfd = accept(sockfd, (SA *)&cli, sizeof(cli));
+        connfd = accept(sockfd, (SA *)&cli, &len);
         if (connfd < 0)
         {
             printf("server accept failed...\n");
@@ -85,9 +95,12 @@ int main()
 
         close(connfd);
     }
+}
 
-    while (wait(NULL) > 0)
-        ;
+void signal_handler(int signum)
+{
+    kill(-getpid(), 10);
 
-    close(sockfd);
+    if (sockfd != -1)
+        close(sockfd);
 }
