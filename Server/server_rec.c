@@ -4,12 +4,14 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <fcntl.h>
 
 #define MAX 10000
-#define PORT 8080
+#define PORT 8081
 #define SA struct sockaddr
 
 void signal_handler(int signum);
@@ -67,8 +69,6 @@ int main()
     else
         printf("Server listening..\n");
 
-    int counter = 0;
-
     for (;;)
     {
         struct sockaddr_in cli;
@@ -83,17 +83,15 @@ int main()
         else
             printf("server accept the client...\n");
 
-        ++counter;
-
         int fid = fork();
 
         if (fid == 0)
         {
-            dup2(connfd, 0);
-            char filename[20];
-            sprintf(filename, "video-%d.avi", counter);
-            execlp("ffmpeg", "ffmpeg", "-loglevel", "debug", "-y", "-f", "image2pipe", "-vcodec", "mjpeg", "-r",
-                   "10", "-i", "-", "-vcodec", "mpeg4", "-qscale", "5", "-r", "10", filename, NULL);
+            int fd = open("foto.jpg", O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR);
+            dup2(connfd, fd);
+            close(fd);
+            dup2(connfd, 1);
+            execlp("python3", "python3", "../facial_req/run_req.py", NULL);
         }
 
         close(connfd);

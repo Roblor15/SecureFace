@@ -1,11 +1,6 @@
-from imutils.video import VideoStream
-from imutils.video import FPS
 import face_recognition
-import imutils
 import pickle
-import time
 import cv2
-import numpy as np
 
 
 # Initialize 'currentname' to trigger only when a new person is identified.
@@ -15,11 +10,10 @@ encodingsP = "encodings.pickle"
 
 # load the known faces and embeddings along with OpenCV's Haar
 # cascade for face detection
-print("[INFO] loading encodings + face detector...")
 data = pickle.loads(open(encodingsP, "rb").read())
 
 # vid = cv2.VideoCapture(0)
-frame = cv2.imread('dataset/Roberto/IMG-20230108-WA0012.jpg')
+frame = cv2.imread('../Server/foto.jpg')
 frame = cv2.resize(frame, (500, 500))
 
 # Detect the fce boxes
@@ -52,10 +46,5 @@ if True in matches:
     # of votes (note: in the event of an unlikely tie Python
     # will select first entry in the dictionary)
     name = max(counts, key=counts.get)
-
-    # If someone in your dataset is identified, print their name on the screen
-    # if currentname != name:
-    #     currentname = name
-    #     print(currentname)
     
 print(name)

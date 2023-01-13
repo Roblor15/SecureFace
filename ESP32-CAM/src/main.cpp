@@ -9,7 +9,7 @@
 // #include <CircularBuffer.h>
 
 #define VIDEO
-//  #define RECOGNITION
+#define RECOGNITION
 
 #define WIFI_SSID "Lorenzon-Home"
 #define WIFI_PSW "DaMiAnO199411"
