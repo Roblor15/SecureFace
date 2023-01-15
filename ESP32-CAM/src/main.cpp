@@ -6,7 +6,6 @@
 #include <cstddef>
 #include <esp_camera.h>
 #include <HCSR04.h>
-// #include <CircularBuffer.h>
 
 #define VIDEO
 #define RECOGNITION
@@ -41,12 +40,12 @@
 // #define LED 4
 
 // Number of frames per video
-#define N_VIDEO_FRAMES 150
+#define N_VIDEO_FRAMES 200
 
 #define N_RECOGNITION_FRAMES 10
 
 // Dimension of CircularBuffer
-#define N_BUF 120
+#define N_BUF 100
 
 // Bitmask (pin 12) if pins used to wake up
 #define BUTTON_PIN_BITMASK 0x000001000
@@ -55,6 +54,7 @@ typedef enum Purpose
 {
   Video,
   Recognition,
+  RecognitionEnd,
   Both
 } Purpose;
 
@@ -145,7 +145,6 @@ void loop()
 
     esp_camera_fb_return(fb);
 
-    // buffer.push(p);
     log_d("len photo %d: %d", video_count + recognition_count, p->len);
     log_d("heap : %d", ESP.getFreeHeap());
     log_d("psram: %d", ESP.getFreePsram());
@@ -174,8 +173,31 @@ void loop()
       esp_deep_sleep_start();
     }
 
-    if (video_count == N_VIDEO_FRAMES || recognition_count == N_RECOGNITION_FRAMES)
+    if (video_count == N_VIDEO_FRAMES)
     {
+      send = false;
+      finished_time = millis();
+    }
+    if (recognition_count == N_RECOGNITION_FRAMES)
+    {
+      Photo *p = (Photo *)ps_malloc(sizeof(Photo));
+      p->len = 2;
+      p->buffer = (uint8_t *)ps_malloc(sizeof(uint8_t) * 2);
+      (p->buffer)[0] = 0xff;
+      (p->buffer)[1] = 0xd9;
+
+      PhotoSend *photo_send = new PhotoSend;
+      photo_send->photo = p;
+      photo_send->purpose = Purpose::RecognitionEnd;
+
+      if (!xQueueSend(photo_queues, (void *)&photo_send, 2 * 60 * 1000 / portTICK_PERIOD_MS))
+      {
+        vTaskDelete(task_0);
+        log_d("going to sleep");
+        delay(2000);
+        esp_deep_sleep_start();
+      }
+
       send = false;
       finished_time = millis();
     }
@@ -231,11 +253,34 @@ void setupCamera()
     Serial.printf("Camera init failed with error 0x%x", err);
     return;
   }
+
+  sensor_t *s = esp_camera_sensor_get();
+  s->set_brightness(s, 0);                 // -2 to 2
+  s->set_contrast(s, 0);                   // -2 to 2
+  s->set_saturation(s, 0);                 // -2 to 2
+  s->set_special_effect(s, 0);             // 0 to 6 (0 - No Effect, 1 - Negative, 2 - Grayscale, 3 - Red Tint, 4 - Green Tint, 5 - Blue Tint, 6 - Sepia)
+  s->set_whitebal(s, 1);                   // 0 = disable , 1 = enable
+  s->set_awb_gain(s, 1);                   // 0 = disable , 1 = enable
+  s->set_wb_mode(s, 0);                    // 0 to 4 - if awb_gain enabled (0 - Auto, 1 - Sunny, 2 - Cloudy, 3 - Office, 4 - Home)
+  s->set_exposure_ctrl(s, 1);              // 0 = disable , 1 = enable
+  s->set_aec2(s, 0);                       // 0 = disable , 1 = enable
+  s->set_ae_level(s, 0);                   // -2 to 2
+  s->set_aec_value(s, 300);                // 0 to 1200
+  s->set_gain_ctrl(s, 1);                  // 0 = disable , 1 = enable
+  s->set_agc_gain(s, 0);                   // 0 to 30
+  s->set_gainceiling(s, (gainceiling_t)0); // 0 to 6
+  s->set_bpc(s, 0);                        // 0 = disable , 1 = enable
+  s->set_wpc(s, 1);                        // 0 = disable , 1 = enable
+  s->set_raw_gma(s, 1);                    // 0 = disable , 1 = enable
+  s->set_lenc(s, 1);                       // 0 = disable , 1 = enable
+  s->set_hmirror(s, 0);                    // 0 = disable , 1 = enable
+  s->set_vflip(s, 1);                      // 0 = disable , 1 = enable
+  s->set_dcw(s, 1);                        // 0 = disable , 1 = enable
+  s->set_colorbar(s, 0);                   // 0 = disable , 1 = enable
 }
 
 void task_0_function(void *pv)
 {
-  // Constants depending on own connections
   log_d("Task 0 running on task %d\n", xPortGetCoreID());
 
   // Connect to Wi-Fi
@@ -263,11 +308,13 @@ void task_0_function(void *pv)
 #endif
 
 #ifdef RECOGNITION
-  while (!recognition_client.connect(HOST, PORT_VIDEO))
+  while (!recognition_client.connect(HOST, PORT_PHOTO))
   {
     Serial.println("Connecting to recognition host");
     vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
+
+  recognition_client.setTimeout(20);
 #endif
 
   for (;;)
@@ -299,7 +346,6 @@ void task_0_function(void *pv)
     }
     else
     {
-      // Photo *p = buffer.pop();
       if (r)
       {
         Photo *p = photo_send->photo;
@@ -318,6 +364,18 @@ void task_0_function(void *pv)
           recognition_client.write(p->buffer, p->len);
           log_d("sended recognition");
           recognition_client.flush();
+#endif
+        }
+        else if (photo_send->purpose == Purpose::RecognitionEnd)
+        {
+#ifdef RECOGNITION
+          recognition_client.write(p->buffer, p->len);
+          log_d("sended end recognition");
+          recognition_client.flush();
+
+          String s = recognition_client.readStringUntil('\n');
+
+          log_d("%s", s);
 #endif
         }
         else if (photo_send->purpose == Purpose::Both)

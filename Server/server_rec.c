@@ -10,22 +10,29 @@
 #include <signal.h>
 #include <fcntl.h>
 
-#define MAX 10000
+#define MAX 8000
 #define PORT 8081
 #define SA struct sockaddr
 
+#define ARG_LEN 6
+#define PICKLE_FILE "../facial_req/encodings.pickle"
+#define DIR_TEMPLATE "XXXXXX"
+
 void signal_handler(int signum);
+int send_photos(u_int8_t *buff, int bytes, char *dir);
+
+int fd = -1;
+int end_photo = 0;
+int end_sending = 0;
+char path[20] = "foto-0.jpg";
+int counter = 0;
+
+char *argv_recognition[ARG_LEN] = {"python3", PICKLE_FILE, "../facial_req/run_req.py", "-d"};
 
 int sockfd = -1;
-// Driver function
+
 int main()
 {
-    if (signal(SIGKILL, signal_handler) == SIG_ERR)
-    {
-        printf("can't intercept SIGKILL\n");
-        exit(0);
-    }
-
     if (signal(SIGINT, signal_handler) == SIG_ERR)
     {
         printf("can't intercept SIGINT\n");
@@ -87,11 +94,22 @@ int main()
 
         if (fid == 0)
         {
-            int fd = open("foto.jpg", O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR);
-            dup2(connfd, fd);
-            close(fd);
-            dup2(connfd, 1);
-            execlp("python3", "python3", "../facial_req/run_req.py", NULL);
+            uint8_t buff[MAX];
+
+            char *dir_name = mkdtemp(DIR_TEMPLATE);
+            argv_recognition[ARG_LEN - 2] = dir_name;
+
+            int bytes;
+            while ((bytes = read(connfd, buff, MAX)) > 0)
+            {
+                if (!send_photos(buff, bytes, dir_name))
+                    break;
+            }
+
+            printf("fine\n");
+
+            dup2(connfd, STDOUT_FILENO);
+            execvp("python3", argv_recognition);
         }
 
         close(connfd);
@@ -104,4 +122,101 @@ void signal_handler(int signum)
 
     if (sockfd != -1)
         close(sockfd);
+}
+
+int send_photos(u_int8_t *buff, int bytes, char *dir)
+{
+    if (fd == -1)
+    {
+        char photo_path[100];
+        sprintf(photo_path, "%s/%s", dir, path);
+        fd = open(photo_path, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR);
+    }
+    if (end_sending)
+    {
+        if (buff[0] == 0xff && buff[1] == 0xd9)
+        {
+            return 0;
+        }
+        else
+        {
+            sprintf(path, "foto-%d.jpg", ++counter);
+            char photo_path[100];
+            sprintf(photo_path, "%s/%s", dir, path);
+
+            fd = open(photo_path, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR);
+
+            end_sending = 0;
+        }
+    }
+    if (end_photo)
+    {
+        end_photo = 0;
+        printf("end\n");
+
+        if (buff[0] == 0xd9)
+        {
+            printf("end 2");
+            write(fd, buff, 1);
+            close(fd);
+            end_sending = 1;
+            if (bytes > 1)
+            {
+                sprintf(path, "foto-%d.jpg", ++counter);
+                char photo_path[100];
+                sprintf(photo_path, "%s/%s", dir, path);
+
+                fd = open(photo_path, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR);
+
+                int len = bytes - 1;
+                uint8_t b[len];
+                for (int j = 1; j < bytes; j++)
+                {
+                    b[j - 1] = buff[j];
+                }
+
+                return send_photos(b, len, dir);
+            }
+            else
+            {
+                return 1;
+            }
+        }
+    }
+
+    for (int i = 0; i < bytes; i++)
+    {
+        if (buff[i] == 0xff)
+        {
+            if (i == bytes - 1)
+            {
+                end_photo = 1;
+            }
+            else if (buff[++i] == 0xd9)
+            {
+                write(fd, buff, i + 1);
+
+                close(fd);
+
+                end_sending = 1;
+
+                if (i != bytes - 1)
+                {
+                    int len = bytes - i - 1;
+                    uint8_t b[len];
+                    for (int j = i + 1; j < bytes; j++)
+                    {
+                        b[j - i - 1] = buff[j];
+                    }
+
+                    return send_photos(b, len, dir);
+                }
+
+                return 1;
+            }
+        }
+    }
+
+    write(fd, buff, bytes);
+    return 1;
 }

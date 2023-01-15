@@ -15,15 +15,9 @@
 void signal_handler(int signum);
 
 int sockfd = -1;
-// Driver function
+
 int main()
 {
-    if (signal(SIGKILL, signal_handler) == SIG_ERR)
-    {
-        printf("can't intercept SIGKILL\n");
-        exit(0);
-    }
-
     if (signal(SIGINT, signal_handler) == SIG_ERR)
     {
         printf("can't intercept SIGINT\n");
