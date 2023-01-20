@@ -30,8 +30,6 @@
 #define REC_PROGRAM "../facial_req/run_req.py"
 // Path to the .pickle file returned from facial recognition training
 #define PICKLE_FILE "../facial_req/encodings.pickle"
-// Template for photos' temporary directories
-#define DIR_TEMPLATE "XXXXXX"
 
 // Kills all children processes
 void signal_handler(int signum);
@@ -42,7 +40,10 @@ void signal_handler(int signum);
 int save_photos(u_int8_t *buff, int bytes, char *dir);
 
 // Arguments to pass to the recognition program
-char *argv_recognition[ARG_LEN] = {"python3", PICKLE_FILE, REC_PROGRAM, "-d"};
+char *argv_recognition[ARG_LEN] = {"python3", REC_PROGRAM, PICKLE_FILE, "-d"};
+
+// Template for photos' temporary directories
+char template[] = "XXXXXX";
 
 // File descriptor for the socket
 int sockfd = -1;
@@ -122,7 +123,9 @@ int main()
             uint8_t buff[MAX];
 
             // Creation of temporary directory for incoming photos
-            char *dir_name = mkdtemp(DIR_TEMPLATE);
+            char *dir_name = mkdtemp(template);
+            // char *dir_name = "ciao";
+            // mkdir(dir_name, O_CREAT | O_RDWR);
             // Add directory to face recognition arguments
             argv_recognition[ARG_LEN - 2] = dir_name;
 
@@ -206,11 +209,9 @@ int save_photos(u_int8_t *buff, int bytes, char *dir)
     if (end_photo)
     {
         end_photo = 0;
-        printf("end\n");
 
         if (buff[0] == 0xd9)
         {
-            printf("end 2");
             write(fd, buff, 1);
             close(fd);
             end_sending = 1;
@@ -231,7 +232,7 @@ int save_photos(u_int8_t *buff, int bytes, char *dir)
                     b[j - 1] = buff[j];
                 }
 
-                return send_photos(b, len, dir);
+                return save_photos(b, len, dir);
             }
             else
             {
@@ -268,7 +269,7 @@ int save_photos(u_int8_t *buff, int bytes, char *dir)
                         b[j - i - 1] = buff[j];
                     }
 
-                    return send_photos(b, len, dir);
+                    return save_photos(b, len, dir);
                 }
 
                 return 1;
