@@ -6,6 +6,7 @@ import collections
 import os
 
 
+
 def recognition(path):
     # Load the image
     frame = cv2.imread(path)
