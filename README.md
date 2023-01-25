@@ -6,6 +6,7 @@
 
 ### Esp32-CAM
 
+We suggest to install the VScode extension called 
 ### Raspberry
 
 ## Project Layout
