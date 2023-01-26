@@ -1,25 +1,23 @@
-#include "esp32-hal-log.h"
-#include "freertos/portmacro.h"
-#include "freertos/projdefs.h"
 #include <Arduino.h>
 #include <WiFi.h>
-#include <cstddef>
 #include <esp_camera.h>
 
 // Enable Video
 #define VIDEO
 // Enable Recogniton
 #define RECOGNITION
+// If display is used
+#define LCD_DISPLAY
 
 // The name of the Wifi network
-#define WIFI_SSID "XXXXXXXXXXXXX"
+#define WIFI_SSID "Lorenzon-Home"
 // The password of the Wifi network
-#define WIFI_PSW "XXXXXXXXXXXXX"
+#define WIFI_PSW "DaMiAnO199411"
 
 #ifdef VIDEO
 
 // The video server IP
-#define HOST_VIDEO "XXXXXXXXX"
+#define HOST_VIDEO "roblor-matebook"
 // The video server port
 #define PORT_VIDEO 8080
 // Number of frames per video
@@ -35,7 +33,7 @@ int video_count = 0;
 #include <HCSR04.h>
 
 // The video server IP
-#define HOST_PHOTO "XXXXXXXXXXXXX"
+#define HOST_PHOTO "roblor-matebook"
 // The video server port
 #define PORT_PHOTO 8081
 
@@ -49,6 +47,21 @@ UltraSonicDistanceSensor distanceSensor(13, 15);
 // Counter for recognition frames
 int recognition_count = 0;
 
+#endif
+
+#ifdef LCD_DISPLAY
+
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+#define RS GPIO_NUM_14
+#define E GPIO_NUM_12
+#define D4 GPIO_NUM_13
+#define D5 GPIO_NUM_15
+#define D6 GPIO_NUM_2
+#define D7 GPIO_NUM_0
+
+LiquidCrystal_I2C lcd;
 #endif
 
 // Pin definition for CAMERA_MODEL_AI_THINKER
@@ -69,10 +82,7 @@ int recognition_count = 0;
 #define HREF_GPIO_NUM 23
 #define PCLK_GPIO_NUM 22
 
-// Pin flash
-// #define LED 4
-
-// Dimension of CircularBuffer
+// Dimension of photos' queue
 #define N_BUF 100
 
 // Bitmask (pin 12) if pins used to wake up
@@ -121,6 +131,15 @@ void setup()
   // Initialise the Serial Communication
   Serial.begin(115200);
 
+  // Setup the camera
+  setupCamera();
+
+#ifdef LCD_DISPLAY
+  Wire.begin(0, 0);
+  lcd.begin(16, 2);
+
+#endif
+
   // Create the queue with N_BUF size
   photo_queues = xQueueCreate(N_BUF, sizeof(PhotoSend *));
 
@@ -133,14 +152,11 @@ void setup()
   xTaskCreatePinnedToCore(
       task_0_function,
       "Send photos",
-      3500,
+      2050,
       NULL,
       0,
       &task_0,
       0);
-
-  // Setup the camera
-  setupCamera();
 
   delay(1000);
 }
@@ -155,9 +171,9 @@ unsigned long photo_timestamp = 0;
 // Value set when the main task has finished
 unsigned long finished_time = 0;
 
-// TODO: can convert it with a periodic timer
 void loop()
 {
+
   uint64_t now = millis();
 
   // Execute this every 100ms
@@ -173,6 +189,11 @@ void loop()
     // Restart if some errors
     if (!fb)
     {
+#ifdef LCD_DISPLAY
+      lcd.clear();
+      lcd.print("Camera capture failed");
+      delay(1000);
+#endif
       Serial.println("Camera capture failed");
       ESP.restart();
       return;
@@ -189,26 +210,85 @@ void loop()
     // Prepare the camera for the next photo
     esp_camera_fb_return(fb);
 
-    log_d("len photo %d: %d", video_count + recognition_count, p->len);
     log_d("heap : %d", ESP.getFreeHeap());
     log_d("psram: %d", ESP.getFreePsram());
 
     PhotoSend *photo_send = new PhotoSend;
     photo_send->photo = p;
 
+#if defined(RECOGNITION) && defined(VIDEO)
     // Set the purpose of the photo
-    if (recognition_count || distanceSensor.measureDistanceCm(25) < PHOTO_TRIGGER)
+    if (recognition_count || distanceSensor.measureDistanceCm(25) <= PHOTO_TRIGGER)
     {
       log_d("sending recognition");
       photo_send->purpose = Purpose::Recognition;
       ++recognition_count;
+
+#ifdef LCD_DISPLAY
+      if (recognition_count == 1)
+      {
+        lcd.clear();
+        lcd.print("Recognition....");
+      }
+#endif
     }
     else
     {
       log_d("sending video");
       photo_send->purpose = Purpose::Video;
       ++video_count;
+
+#ifdef LCD_DISPLAY
+      if (video_count == 1)
+      {
+        lcd.clear();
+        lcd.print("Recording....");
+      }
+#endif
     }
+#elif defined(RECOGNITION)
+    if (!recognition_count)
+    {
+#ifdef LCD_DISPLAY
+      if (recognition_count == 1)
+      {
+        lcd.clear();
+        lcd.print("Face too distant");
+      }
+#endif
+
+      while (distanceSensor.measureDistanceCm(25) > PHOTO_TRIGGER)
+      {
+        log_d("face too distant");
+        delay(1000);
+      }
+    }
+
+    log_d("sending recognition");
+    photo_send->purpose = Purpose::Recognition;
+    ++recognition_count;
+
+#ifdef LCD_DISPLAY
+    if (recognition_count == 1)
+    {
+      lcd.clear();
+      lcd.print("Recognition....");
+    }
+#endif
+
+#elif defined(VIDEO)
+    log_d("sending video");
+    photo_send->purpose = Purpose::Video;
+    ++video_count;
+
+#ifdef LCD_DISPLAY
+    if (video_count == 1)
+    {
+      lcd.clear();
+      lcd.print("Recording....");
+    }
+#endif
+#endif
 
     // Send the photo to the sending task
     if (!xQueueSend(photo_queues, (void *)&photo_send, 2 * 60 * 1000 / portTICK_PERIOD_MS))
@@ -219,12 +299,15 @@ void loop()
       esp_deep_sleep_start();
     }
 
+#ifdef VIDEO
     // If the wanted number of frames is reached set send = false
     if (video_count == N_VIDEO_FRAMES)
     {
       send = false;
       finished_time = millis();
     }
+#endif
+#ifdef RECOGNITION
     if (recognition_count == N_RECOGNITION_FRAMES)
     {
       // Send the end of the frames to the server
@@ -242,6 +325,12 @@ void loop()
       {
         vTaskDelete(task_0);
         log_d("going to sleep");
+
+#ifdef LCD_DISPLAY
+        lcd.clear();
+        lcd.print("Going to sleep..");
+#endif
+
         delay(2000);
         esp_deep_sleep_start();
       }
@@ -249,12 +338,19 @@ void loop()
       send = false;
       finished_time = millis();
     }
+#endif
   }
   // If sending task has finished delete it end go sleep
   else if (finished)
   {
     vTaskDelete(task_0);
     log_d("going to sleep");
+
+#ifdef LCD_DISPLAY
+    lcd.clear();
+    lcd.print("Going to sleep..");
+#endif
+
     delay(2000);
     esp_deep_sleep_start();
   }
@@ -263,6 +359,12 @@ void loop()
   {
     vTaskDelete(task_0);
     log_d("going to sleep");
+
+#ifdef LCD_DISPLAY
+    lcd.clear();
+    lcd.print("Going to sleep..");
+#endif
+
     delay(2000);
     esp_deep_sleep_start();
   }
@@ -432,15 +534,30 @@ void task_0_function(void *pv)
           log_d("sended end recognition");
           recognition_client.flush();
 
-          String s = recognition_client.readStringUntil('\n');
+          String name = recognition_client.readStringUntil('\n');
 
-          log_d("%s", s);
+          log_d("%s", name);
+
+#ifdef LCD_DISPLAY
+          lcd.clear();
+          if (name != "Unknown\n")
+          {
+            lcd.print("Welcome");
+            lcd.setCursor(0, 1);
+            lcd.print(name);
+          }
+          else
+          {
+            lcd.print("User not");
+            lcd.setCursor(0, 1);
+            lcd.print("identified");
+          }
+#endif
 #endif
         }
         else if (photo_send->purpose == Purpose::Both)
         {
-#ifdef RECOGNITION
-#ifdef VIDEO
+#ifdef defined(RECOGNITION) && defined(VIDEO)
           video_client.write(p->buffer, p->len);
           video_client.flush();
 
@@ -448,7 +565,6 @@ void task_0_function(void *pv)
           recognition_client.flush();
 
           log_d("sended video and recognition");
-#endif
 #endif
         }
 
