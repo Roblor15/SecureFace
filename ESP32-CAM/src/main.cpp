@@ -10,14 +10,14 @@
 #define LCD_DISPLAY
 
 // The name of the Wifi network
-#define WIFI_SSID "Lorenzon-Home"
+#define WIFI_SSID "XXXXXXXXXXXXX"
 // The password of the Wifi network
-#define WIFI_PSW "DaMiAnO199411"
+#define WIFI_PSW "XXXXXXXXXXXXX"
 
 #ifdef VIDEO
 
 // The video server IP
-#define HOST_VIDEO "roblor-matebook"
+#define HOST_VIDEO "XXXXXXXXXXXXX"
 // The video server port
 #define PORT_VIDEO 8080
 // Number of frames per video
@@ -33,7 +33,7 @@ int video_count = 0;
 #include <HCSR04.h>
 
 // The video server IP
-#define HOST_PHOTO "roblor-matebook"
+#define HOST_PHOTO "XXXXXXXXXXXXX"
 // The video server port
 #define PORT_PHOTO 8081
 
@@ -54,14 +54,9 @@ int recognition_count = 0;
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
-#define RS GPIO_NUM_14
-#define E GPIO_NUM_12
-#define D4 GPIO_NUM_13
-#define D5 GPIO_NUM_15
-#define D6 GPIO_NUM_2
-#define D7 GPIO_NUM_0
-
+// Object that contols the LCD display
 LiquidCrystal_I2C lcd;
+
 #endif
 
 // Pin definition for CAMERA_MODEL_AI_THINKER
@@ -86,7 +81,7 @@ LiquidCrystal_I2C lcd;
 #define N_BUF 100
 
 // Bitmask (pin 12) if pins used to wake up
-#define BUTTON_PIN_BITMASK 0x000001000
+#define BUTTON_PIN_BITMASK GPIO_SEL_12
 
 // Define the purpose for the photo
 typedef enum Purpose
@@ -135,6 +130,8 @@ void setup()
   setupCamera();
 
 #ifdef LCD_DISPLAY
+
+  // Initialise the display
   Wire.begin(0, 0);
   lcd.begin(16, 2);
 
@@ -186,15 +183,18 @@ void loop()
     camera_fb_t *fb = nullptr;
 
     fb = esp_camera_fb_get();
+
     // Restart if some errors
     if (!fb)
     {
+      Serial.println("Camera capture failed");
 #ifdef LCD_DISPLAY
+      // Print on the display the error
       lcd.clear();
       lcd.print("Camera capture failed");
       delay(1000);
 #endif
-      Serial.println("Camera capture failed");
+
       ESP.restart();
       return;
     }
@@ -227,6 +227,7 @@ void loop()
 #ifdef LCD_DISPLAY
       if (recognition_count == 1)
       {
+        // Print on the display that the cam is making the face recognition
         lcd.clear();
         lcd.print("Recognition....");
       }
@@ -241,17 +242,21 @@ void loop()
 #ifdef LCD_DISPLAY
       if (video_count == 1)
       {
+        // Print on the display that the cam is recording
         lcd.clear();
         lcd.print("Recording....");
       }
 #endif
     }
 #elif defined(RECOGNITION)
+    // The fist time wait for the face to recognise
     if (!recognition_count)
     {
+      ++recognition_count;
 #ifdef LCD_DISPLAY
       if (recognition_count == 1)
       {
+        // Print that the face is too distant for recognition
         lcd.clear();
         lcd.print("Face too distant");
       }
@@ -266,11 +271,11 @@ void loop()
 
     log_d("sending recognition");
     photo_send->purpose = Purpose::Recognition;
-    ++recognition_count;
 
 #ifdef LCD_DISPLAY
     if (recognition_count == 1)
     {
+      // Print on the display that the cam is making the face recognition
       lcd.clear();
       lcd.print("Recognition....");
     }
@@ -282,6 +287,7 @@ void loop()
     ++video_count;
 
 #ifdef LCD_DISPLAY
+    // Print on the display that the cam is recording
     if (video_count == 1)
     {
       lcd.clear();
@@ -340,7 +346,7 @@ void loop()
     }
 #endif
   }
-  // If sending task has finished delete it end go sleep
+  // If sending task has finished delete it end go to sleep
   else if (finished)
   {
     vTaskDelete(task_0);
@@ -354,7 +360,7 @@ void loop()
     delay(2000);
     esp_deep_sleep_start();
   }
-  // If the sending task has not finished in 2 minutes end it and go sleep
+  // If the sending task has not finished in 2 minutes, end it and go to sleep
   else if (!send && now - finished_time > 60 * 2 * 1000)
   {
     vTaskDelete(task_0);

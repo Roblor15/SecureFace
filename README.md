@@ -2,6 +2,56 @@
 
 ## Requirements
 
+### Materials
+
+For this project we used:
+
+- Esp32cam Ai-Thinker board.
+- PIR sensor (HC-SR501)
+- Ultrasonic sensor (HC-SR04)
+- LCD Display (1602) with I2C module
+
+If an other version of the board is used you have to modify the cam's pins with the right [ones](ESP32-CAM/src/main.cpp#L61).
+
+```c
+#define PWDN_GPIO_NUM 32
+#define RESET_GPIO_NUM -1
+#define XCLK_GPIO_NUM 0
+#define SIOD_GPIO_NUM 26
+#define SIOC_GPIO_NUM 27
+#define Y9_GPIO_NUM 35
+#define Y8_GPIO_NUM 34
+#define Y7_GPIO_NUM 39
+#define Y6_GPIO_NUM 36
+#define Y5_GPIO_NUM 21
+#define Y4_GPIO_NUM 19
+#define Y3_GPIO_NUM 18
+#define Y2_GPIO_NUM 5
+#define VSYNC_GPIO_NUM 25
+#define HREF_GPIO_NUM 23
+#define PCLK_GPIO_NUM 22
+```
+
+The ultrasonic sensor is required only if the face recognition is active in order to understand if a person is in front of the cam.
+
+The LCD Display is optional, if you can't use one you can see the response of the face recognition in the serial monitor.
+
+### Connections
+
+You can modify all the pins we used, but with the esp32cam Ai-Thinker we suggest to not use GPIO0 and GPIO16. The former is used as source of the clock for the camera and the latter is used to activate the PSRAM (if your board has one).
+
+#### PIR Sensor
+
+You can follow [this guide](http://win.adrirobot.it/sensori/pir_sensor/pir_sensor_hc-sr501_arduino.htm) to set the sensor in auto-reset mode and, if you want, to adjust the sensitivity and the output timing. We used the default values. Connect the output pin to GPIO12.
+
+If you choose another GPIO pin remeber to change also the value of the [bitmask](ESP32-CAM/src/main.cpp#L82).
+
+#### Ultrasonic Sensor
+
+We simply connected the trigger pin to GPIO13 and the echo pin to GPIO15 as you can see [here](ESP32-CAM/src/main.cpp#L46).
+
+#### LCD Disply
+
 ## Software Requirement
 
 ### Esp32-CAM
@@ -18,7 +68,7 @@ board_build.partitions = min_spiffs.csv
 build_flags =
     -DBOARD_HAS_PSRAM
     -mfix-esp32-psram-cache-issue
-    -DCORE_DEBUG_LEVEL=5
+    # -DCORE_DEBUG_LEVEL=5        # activate to receive debugging infos
 lib_deps = martinsos/HCSR04@^2.0.0
 ```
 
