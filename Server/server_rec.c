@@ -124,8 +124,7 @@ int main()
 
             // Creation of temporary directory for incoming photos
             char *dir_name = mkdtemp(template);
-            // char *dir_name = "ciao";
-            // mkdir(dir_name, O_CREAT | O_RDWR);
+            
             // Add directory to face recognition arguments
             argv_recognition[ARG_LEN - 2] = dir_name;
 
