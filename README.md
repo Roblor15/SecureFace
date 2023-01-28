@@ -122,7 +122,11 @@ $ pip install -r requirements.txt
 
 The installation process could need some hour to be complete. After the installation, we need to **restore the swapfile with `100`** by running the same two commands.
 
-After these commands the installation process is terminated.
+Finally, we need to install `ffmpeg` software in order to create the video from the Esp-Cam images :
+
+```bash
+$ sudo apt install ffmpeg
+```
 
 ## Project Layout!
 
@@ -149,4 +153,98 @@ After these commands the installation process is terminated.
 
 ```
 
-## 
+## Getting Started
+
+### Esp32-CAM
+
+client part here ...............
+
+### Raspberry
+
+The first step is to train the facial recognition model. In order to run the training, a dataset is needed, so you have to create a `dataset` folder in which all data must be uploaded. For each person that the model have to recognize create a **folder** inside the `dataset` folder with all the training set images. The name of the folders will be the output of the recognition script when it recognizes someone. Instead, `unknown` will be the output when the script does not recognize anyone. 
+
+```bash
+$ cd facial_req
+$ mkdir dataset
+$ cd dataset
+$ mkdir person1
+```
+
+In our project we upload a hundred images for each person with an acceptable accuracy result. Now run the `train_model.py` to train the model on the dataset created before.
+
+```bash
+$ python3 train_model.py
+```
+
+When the training is completed the file `encoding.pickle` will be created. This file will be used from the recognition script to recognize face from an image.
+
+Now we need to compile `server_rec.c` `server_video.c` files :
+
+```bash
+$ cd Server
+$ gcc server_rec.c -o server_rec
+$ gcc server_video.c -o server_video
+```
+
+### Server_rec
+
+`server_rec` script open a **socket** and wait for a connection with client. When a connection is accepted correctly a child is created to menage the connection. 
+
+```c
+// Accept the data packet from client and verification
+        connfd = accept(sockfd, (struct sockaddr *)&cli, &len);
+        if (connfd < 0)
+        {
+            printf("server accept failed...\n");
+            exit(0);
+        }
+        else
+            printf("server accept the client...\n");
+
+        // Start new child process that handles the connection
+        int fid = fork();
+```
+
+The child create a temp folder where create the image files received from the client. The data bytes are read from the socket and the images are created with `save_photo()` function. Once the data transmission is terminated the `run_req.py` to recognize face from images.
+
+```c
+#define REC_PROGRAM "../facial_req/run_req.py"
+// Path to the .pickle file returned from facial recognition training
+#define PICKLE_FILE "../facial_req/encodings.pickle"
+
+// Arguments to pass to the recognition program
+char *argv_recognition[ARG_LEN] = {"python3", REC_PROGRAM, PICKLE_FILE, "-d"};
+
+// main()
+if (fid == 0)
+        {
+            // Buffer used to receive photos
+            uint8_t buff[MAX];
+
+            // Creation of temporary directory for incoming photos
+            char *dir_name = mkdtemp(template);
+
+            // Add directory to face recognition arguments
+            argv_recognition[ARG_LEN - 2] = dir_name;
+
+            // Bytes read
+            int bytes;
+            // Read untill EOF or an error
+            while ((bytes = read(connfd, buff, MAX)) > 0)
+            {
+                if (!save_photos(buff, bytes, dir_name))
+                    // Break if the photos are finished
+                    break;
+            }
+    
+            // Overwrite the stdout with the connection fd to send the response
+            dup2(connfd, STDOUT_FILENO);
+            // Execute the recognition program
+            execvp("python3", argv_recognition);
+        }
+```
+
+In the argument of python script a `-d` flag are add to enable the erase of temp folder after recognition. This script read each images with `opencv` and find a match in the trained model. EspCam will send more then a single image, so the result will be the most common result.
+
+### Server_video
+
