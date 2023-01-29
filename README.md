@@ -1,7 +1,6 @@
 # SecureFace
 
-SecureFace is an application that can recognize the identity of a person by it face. The system is made by a motion sensor that when capts a signal it activates an Ultrasonic sensor. The Ultrasonic sensor then waits until the person arrives at a distance lower than 30 cm to it and activate the camera which takes 10 photos in 1 second. The Esp32cam integrated in the camera sends the photos via Wi-fi to a Raspberry device which uses a recognition function to identify the face and returns the result.
-Finally, the LCD prints the name of the person recognized or otherwise it prints an error message.
+SecureFace is an application that recognizes a person's identity by their face and creates a short video when motion is detected. When a person comes within 30 cm of the ultrasonic sensor, the camera is activated and takes photos. The Esp32cam integrated with the camera sends the photos over Wi-Fi to a Raspberry device, which uses a recognition function to identify the face and return the result. The LCD then displays the recognized person's name or an error message. Instead if motion is detected using the PIR sensor, a batch of images is sent to the Raspberry server, which creates and stores the video of the suspicious scene.
 
 
 ## Requirements
@@ -356,6 +355,9 @@ for photo in os.listdir(path):
     # Print the most common result
     print(counter.most_common(1)[0][0])
 ```
+Acknowledgments
 
-## Runtime
-When you run the program, the motion camera waits to capture a movement. Then if you move near enough to the distance-camera, in 1 second the camera will take 10 photos of you and in a few instants the display will print your name if you are in the database otherwise will show a message error.
+<a href="https://www.unitn.it/"><img src="./doc-images/unitn_logo.png" width="300px"></a> <a href="https://ege.edu.tr/"><img src="./doc-images/ege_logo.png" width="100px"></a>
+
+Copyright
+MIT Licence or otherwise specified. See license file for details.
