@@ -357,6 +357,10 @@ for photo in os.listdir(path):
 ```
 ## Acknowledgments
 
+Students: <a href="https://github.com/enrico-car">Enrico Carnelos</a> - <a href="https://github.com/Roblor15">Roberto Lorenzon</a> - <a href="https://github.com/fabiogr8">Fabio Grotto</a>
+
+Embedded Software for the Internet of Things Course - Professor: <a href="https://webapps.unitn.it/du/it/Persona/PER0212812/Didattica">Yildrim Kasim Sinan</a>
+
 <a href="https://www.unitn.it/"><img src="./Images/unitn_logo.png" width="300px"></a>
 
 ## Copyright
