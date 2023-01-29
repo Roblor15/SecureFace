@@ -199,3 +199,163 @@ $ pio run -t upload
 
 ## Runtime
 When you run the program, the motion camera waits to capture a movement. Then if you move near enough to the distance-camera, in 1 second the camera will take 10 photos of you and in a few instants the display will print your name if you are in the database otherwise will show a message error.
+
+### Raspberry
+
+The first step is to train the facial recognition model. To run the training, a dataset is needed. To create this dataset, you must create a `dataset` folder, and then add a folder for each person that the model must recognize. The name of these folders will be the output of the recognition script when it recognizes someone, while "unknown" will be the output when the script doesn't recognize anyone. In our project, we uploaded a hundred images per person with an acceptable accuracy result.
+
+```bash
+$ cd facial_req
+$ mkdir dataset
+$ cd dataset
+$ mkdir person1
+```
+
+Next, run `train_model.py` to train the model on the dataset you created.
+
+```bash
+$ python3 train_model.py
+```
+
+When the training is complete, the file `encoding.pickle` will be created. This file will be used by the recognition script to recognize faces in images.
+
+Now you need to compile the `server_rec.c` and `server_video.c` files:
+
+```bash
+$ cd Server
+$ gcc server_rec.c -o server_rec
+$ gcc server_video.c -o server_video
+```
+
+### Server_rec.c
+
+The `server_rec`.c script opens a socket and waits for a connection from a client. When a connection is established, a child process is created to manage the connection.
+
+```c
+// Accept the data packet from client and verification
+        connfd = accept(sockfd, (struct sockaddr *)&cli, &len);
+        if (connfd < 0)
+        {
+            printf("server accept failed...\n");
+            exit(0);
+        }
+        else
+            printf("server accept the client...\n");
+
+        // Start new child process that handles the connection
+        int fid = fork();
+```
+
+The child process creates a temporary folder where it saves the image files received from the client. The data bytes are read from the socket and saved as images with the `save_photo()` function. Once the data transmission is complete, the `run_req.py` script is used to recognize faces in the images.
+
+```c
+#define REC_PROGRAM "../facial_req/run_req.py"
+// Path to the .pickle file returned from facial recognition training
+#define PICKLE_FILE "../facial_req/encodings.pickle"
+
+// Arguments to pass to the recognition program
+char *argv_recognition[ARG_LEN] = {"python3", REC_PROGRAM, PICKLE_FILE, "-d"};
+
+// main()
+if (fid == 0)
+        {
+            // Buffer used to receive photos
+            uint8_t buff[MAX];
+
+            // Creation of temporary directory for incoming photos
+            char *dir_name = mkdtemp(template);
+
+            // Add directory to face recognition arguments
+            argv_recognition[ARG_LEN - 2] = dir_name;
+
+            // Bytes read
+            int bytes;
+            // Read untill EOF or an error
+            while ((bytes = read(connfd, buff, MAX)) > 0)
+            {
+                if (!save_photos(buff, bytes, dir_name))
+                    // Break if the photos are finished
+                    break;
+            }
+    
+            // Overwrite the stdout with the connection fd to send the response
+            dup2(connfd, STDOUT_FILENO);
+            // Execute the recognition program
+            execvp("python3", argv_recognition);
+        }
+```
+
+In the argument of python script a `-d` flag are add to enable the erase of temp folder after recognition. This script read each images with `opencv` and find a match in the trained model. EspCam will send more then a single image, so the result will be the most common result.
+
+### Server_video.c
+
+The `server_video` script opens a socket and waits for a connection from a client. When a connection is established, a child process is created. This child process calls `ffmpeg` to create a video from the image bytes received. The child process overwrites `stdin` with the socket stream so that `ffmpeg` can take the image bytes from the input stream
+
+```c
+// If child process
+        if (fid == 0)
+        {
+            // Overwrite the stdin with the connection fd to receive the photos
+            dup2(connfd, 0);
+
+            // Create the filename for the video
+            char filename[20];
+            sprintf(filename, "video-%d.avi", counter);
+
+            // Execute ffmpeg with images as input
+            execlp("ffmpeg", "ffmpeg", "-loglevel", "debug", "-y", "-f", "image2pipe", "-vcodec", "mjpeg", "-r",
+                   "10", "-i", "-", "-vcodec", "mpeg4", "-qscale", "5", "-r", "10", filename, NULL);
+        }
+```
+
+### Run_req.py
+
+The `run_req.py` script calls the `recognition()` function on each image in the input folder. The function uses OpenCV to open the image, detect face bounding boxes, and compute matches with the `encodings.pickle` file. The function returns the name of the best matching index.
+
+```python
+def recognition(path):
+    # Load the image
+    frame = cv2.imread(path)
+    # Resize the image
+    frame = cv2.resize(frame, (500, 500))
+    # Detect the face boxes
+    boxes = face_recognition.face_locations(frame)
+    # Compute the facial embeddings for each face bounding box
+    encoding = face_recognition.face_encodings(frame, boxes)[0]
+    matches = face_recognition.compare_faces(data["encodings"], encoding)
+    name = "Unknown"  # If face is not recognized, then print Unknown
+    # Check to see if we have found a match
+    if True in matches:
+        # Find the indexes of all matched faces then initialize a
+        # dictionary to count the total number of times each face
+        # was matched
+        matchedIdxs = [i for (i, b) in enumerate(matches) if b]
+        counts = {}
+        # Loop over the matched indexes and maintain a count for
+        # each recognized face face
+        for i in matchedIdxs:
+            name = data["names"][i]
+            counts[name] = counts.get(name, 0) + 1
+        # Determine the recognized face with the largest number
+        # of votes (note: in the event of an unlikely tie Python
+        # will select first entry in the dictionary)
+        name = max(counts, key=counts.get)
+    return name
+```
+
+The script returns the most common name returned by the `recognition()` function from all images.
+
+```python
+for photo in os.listdir(path):
+                try:
+                    names.append(recognition(os.path.join(path, photo)))
+                except:
+                    names.append("Unknown")
+                    
+# -------------------------------------------------------------
+ # Counts the occurances of the results
+    counter = collections.Counter(names)
+
+    # Print the most common result
+    print(counter.most_common(1)[0][0])
+```
