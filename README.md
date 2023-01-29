@@ -197,9 +197,6 @@ With the terminal go in the [ESP32-CAM](ESP32-CAM/) and run:
 $ pio run -t upload
 ```
 
-## Runtime
-When you run the program, the motion camera waits to capture a movement. Then if you move near enough to the distance-camera, in 1 second the camera will take 10 photos of you and in a few instants the display will print your name if you are in the database otherwise will show a message error.
-
 ### Raspberry
 
 The first step is to train the facial recognition model. To run the training, a dataset is needed. To create this dataset, you must create a `dataset` folder, and then add a folder for each person that the model must recognize. The name of these folders will be the output of the recognition script when it recognizes someone, while "unknown" will be the output when the script doesn't recognize anyone. In our project, we uploaded a hundred images per person with an acceptable accuracy result.
@@ -359,3 +356,6 @@ for photo in os.listdir(path):
     # Print the most common result
     print(counter.most_common(1)[0][0])
 ```
+
+## Runtime
+When you run the program, the motion camera waits to capture a movement. Then if you move near enough to the distance-camera, in 1 second the camera will take 10 photos of you and in a few instants the display will print your name if you are in the database otherwise will show a message error.
