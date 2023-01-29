@@ -74,7 +74,7 @@ lib_deps = martinsos/HCSR04@^2.0.0
 
 ### Raspberry
 
-The raspberry environment only need python and a cpp compiler that are already installed in the [Raspbian](https://www.raspbian.org/) distro and some python library that could  be easily installed with [PIP](https://pypi.org/). 
+The raspberry environment only need python and a cpp compiler that are already installed in the [Raspbian](https://www.raspbian.org/) distro and some python library that could  be easily installed with [PIP](https://pypi.org/).
 
 ```bash
 $ sudo apt update && sudo apt upgrade
@@ -149,4 +149,46 @@ After these commands the installation process is terminated.
 
 ```
 
-## 
+## Getting started
+
+### Esp32Cam
+
+The code for the booard is made in a modulare way. You can comment/uncomment the following [macros](ESP32-CAM/src/main.cpp#L6) to enable/disable some features.
+
+```c
+// Enable Video
+#define VIDEO
+// Enable Recogniton
+#define RECOGNITION
+// If display is used
+#define LCD_DISPLAY
+```
+
+When VIDEO is enable the camera starts taking photos for the server that makes the video.
+
+When RECOGNITION is enable only if the ultrasonic sensor measure a distance minor than [PHOTO_TRIGGER](ESP32-CAM/src/main.cpp#L41), the camera interrupt the video (if enabled) and start taking photos for the recognition server.
+
+The LCD_DISPLAY macro enable the print on an external display.
+
+Before uploading the code there are some mocros that you have to set:
+
+- [WIFI_SSID](ESP32-CAM/src/main.cpp#L13) your wifi network name
+- [WIFI_PSW](ESP32-CAM/src/main.cpp#L15) you wifi password
+- [HOST_VIDEO](ESP32-CAM/src/main.cpp#L20) the IP or the hostname of the video server
+- [HOST_PHOTO](ESP32-CAM/src/main.cpp#L36) the IP or the hostname of the recognition server
+
+In order to upload the code on the board you can proceed either with the VS-code extension or with the CLI.
+
+#### VS-code extension
+
+In VS-code you will see the toolbar shown down here. To upload the code click the arrow (third item in the toolbar)
+
+<img src="Images/platformio-ide-vscode-toolbar.png" alt="toolbar" width="300"/>
+
+#### CLI
+
+With the terminal go in the [ESP32-CAM](ESP32-CAM/) and run:
+
+```bash
+$ pio run -t upload
+```
