@@ -357,7 +357,7 @@ for photo in os.listdir(path):
 ```
 Acknowledgments
 
-<a href="https://www.unitn.it/"><img src="./doc-images/unitn_logo.png" width="300px"></a> <a href="https://ege.edu.tr/"><img src="./doc-images/ege_logo.png" width="100px"></a>
+<a href="https://www.unitn.it/"><img src="./Images/unitn_logo.png" width="300px"></a>
 
 Copyright
 MIT Licence or otherwise specified. See license file for details.
