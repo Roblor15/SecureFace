@@ -355,9 +355,9 @@ for photo in os.listdir(path):
     # Print the most common result
     print(counter.most_common(1)[0][0])
 ```
-Acknowledgments
+## Acknowledgments
 
 <a href="https://www.unitn.it/"><img src="./Images/unitn_logo.png" width="300px"></a>
 
-Copyright
+## Copyright
 MIT Licence or otherwise specified. See license file for details.
