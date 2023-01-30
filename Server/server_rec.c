@@ -27,9 +27,9 @@
 // Better minimum one greater respect the real arguments' length
 #define ARG_LEN 6
 // Path to the recognition program
-#define REC_PROGRAM "../facial_req/run_req.py"
+#define REC_PROGRAM "../facial_rec/run_rec.py"
 // Path to the .pickle file returned from facial recognition training
-#define PICKLE_FILE "../facial_req/encodings.pickle"
+#define PICKLE_FILE "../facial_rec/encodings.pickle"
 
 // Kills all children processes
 void signal_handler(int signum);
