@@ -148,10 +148,10 @@ The installation process could need some hour to be complete. After the installa
 │   │	└── send_photo.c			# test server                
 │   ├── server_video.c 			# script for video                  
 │   └── server_rec.c				# script for face recognition
-└── facial_request
+└── facial_rec
     ├── encodings.pickle                	# faces train model
     ├── haarcascade_frontalface_default.xml	# frontal face trained model
-    ├── run_req.py       			# script to recognize faces
+    ├── run_rec.py       			# script to recognize faces
     ├── train_model.py           		# script for training model
     └── shell.nix 				# configuration file for nix-shell
 
@@ -206,7 +206,7 @@ $ pio run -t upload
 The first step is to train the facial recognition model. To run the training, a dataset is needed. To create this dataset, you must create a `dataset` folder, and then add a folder for each person that the model must recognize. The name of these folders will be the output of the recognition script when it recognizes someone, while "unknown" will be the output when the script doesn't recognize anyone. In our project, we uploaded a hundred images per person with an acceptable accuracy result.
 
 ```bash
-$ cd facial_req
+$ cd facial_rec
 $ mkdir dataset
 $ cd dataset
 $ mkdir person1
@@ -250,7 +250,7 @@ The `server_rec.rec` script opens a socket and waits for a connection from a cli
 The child process creates a temporary folder where it saves the image files received from the client. The data bytes are read from the socket and saved as images with the `save_photo()` function. Once the data transmission is complete, the `run_req.py` script is used to recognize faces by matching source images with the `encodings.pickle` file.
 
 ```c
-#define REC_PROGRAM "../facial_req/run_req.py"
+#define REC_PROGRAM "../facial_rec/run_rec.py"
 // Path to the .pickle file returned from facial recognition training
 #define PICKLE_FILE "../facial_req/encodings.pickle"
 
@@ -309,9 +309,9 @@ The `server_video` script opens a socket and waits for a connection from a clien
         }
 ```
 
-### Run_req.py
+### Run_rec.py
 
-The `run_req.py` script calls the `recognition()` function on each image in the input folder. The function uses `OpenCV` to open the image, detect face bounding boxes, and the `face_recognition` library compute matches with the `encodings.pickle` file. The function returns the name of the best matching index.
+The `run_rec.py` script calls the `recognition()` function on each image in the input folder. The function uses `OpenCV` to open the image, detect face bounding boxes, and the `face_recognition` library compute matches with the `encodings.pickle` file. The function returns the name of the best matching index.
 
 ```python
 def recognition(path):
