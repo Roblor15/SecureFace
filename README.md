@@ -9,7 +9,8 @@ SecureFace is an application that recognizes a person's identity by their face a
 For this project we used:
 
 - Raspberry (suggested pi 3/4 )
-- Esp32cam Ai-Thinker board.
+- Esp32cam Ai-Thinker board
+- FTDI232 (USB to serial converter)
 - PIR sensor (HC-SR501)
 - Ultrasonic sensor (HC-SR04)
 - LCD Display (1602) with I2C module
@@ -184,7 +185,7 @@ Before uploading the code there are some macros that you have to set:
 - [HOST_VIDEO](ESP32-CAM/src/main.cpp#L20) the IP or the hostname of the video server
 - [HOST_PHOTO](ESP32-CAM/src/main.cpp#L36) the IP or the hostname of the recognition server
 
-In order to upload the code on the board you can proceed either with the VS-code extension or with the CLI.
+In order to upload the code on the board you can proceed either with the VS-code extension or with the CLI, using the [FTDI232](https://randomnerdtutorials.com/program-upload-code-esp32-cam/).
 
 #### VS-code extension
 
