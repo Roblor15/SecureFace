@@ -368,4 +368,4 @@ Embedded Software for the Internet of Things Course - Professor: <a href="https:
 <a href="https://www.unitn.it/"><img src="./Images/unitn_logo.png" width="300px"></a>
 
 ## Copyright
-MIT Licence or otherwise specified. See license file for details.
+MIT Licence or otherwise specified. See [license file](LICENCE) for details.
