@@ -56,6 +56,8 @@ We simply connected the trigger pin to GPIO13 and the echo pin to GPIO15 as you 
 
 #### LCD Display
 
+In order to use less pins (the pins of the esp32cam were not enough) we used the I2C adapater for the display, that uses only two pins GPIO14 and GPIO2.
+
 ## Software Requirement
 
 ### Esp32-CAM

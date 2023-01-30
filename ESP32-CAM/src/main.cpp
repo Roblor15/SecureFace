@@ -55,7 +55,7 @@ int recognition_count = 0;
 #include <LiquidCrystal_I2C.h>
 
 // Object that contols the LCD display
-LiquidCrystal_I2C lcd;
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 #endif
 
@@ -132,8 +132,10 @@ void setup()
 #ifdef LCD_DISPLAY
 
   // Initialise the display
-  Wire.begin(0, 0);
-  lcd.begin(16, 2);
+  Wire.begin(2, 14);
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
 
 #endif
 
@@ -149,7 +151,7 @@ void setup()
   xTaskCreatePinnedToCore(
       task_0_function,
       "Send photos",
-      2050,
+      3050,
       NULL,
       0,
       &task_0,
@@ -250,9 +252,10 @@ void loop()
     }
 #elif defined(RECOGNITION)
     // The fist time wait for the face to recognise
-    if (!recognition_count)
+    ++recognition_count;
+
+    if (recognition_count == 1)
     {
-      ++recognition_count;
 #ifdef LCD_DISPLAY
       if (recognition_count == 1)
       {
@@ -301,6 +304,7 @@ void loop()
     {
       vTaskDelete(task_0);
       log_d("going to sleep");
+      lcd.noBacklight();
       delay(2000);
       esp_deep_sleep_start();
     }
@@ -337,6 +341,8 @@ void loop()
         lcd.print("Going to sleep..");
 #endif
 
+        lcd.noBacklight();
+        lcd.clear();
         delay(2000);
         esp_deep_sleep_start();
       }
@@ -357,6 +363,8 @@ void loop()
     lcd.print("Going to sleep..");
 #endif
 
+    lcd.noBacklight();
+    lcd.clear();
     delay(2000);
     esp_deep_sleep_start();
   }
@@ -371,6 +379,8 @@ void loop()
     lcd.print("Going to sleep..");
 #endif
 
+    lcd.noBacklight();
+    lcd.clear();
     delay(2000);
     esp_deep_sleep_start();
   }
@@ -475,7 +485,7 @@ void task_0_function(void *pv)
   }
 
   // Set the timeout to 20s (used with readString)
-  recognition_client.setTimeout(20);
+  recognition_client.setTimeout(120);
 #endif
 
   for (;;)
@@ -546,7 +556,7 @@ void task_0_function(void *pv)
 
 #ifdef LCD_DISPLAY
           lcd.clear();
-          if (name != "Unknown\n")
+          if (name != "Unknown")
           {
             lcd.print("Welcome");
             lcd.setCursor(0, 1);
