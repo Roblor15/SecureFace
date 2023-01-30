@@ -9,6 +9,7 @@ SecureFace is an application that recognizes a person's identity by their face a
 
 For this project we used:
 
+- Raspberry (suggested pi 3/4 )
 - Esp32cam Ai-Thinker board.
 - PIR sensor (HC-SR501)
 - Ultrasonic sensor (HC-SR04)
@@ -53,7 +54,7 @@ If you choose another GPIO pin remeber to change also the value of the [bitmask]
 
 We simply connected the trigger pin to GPIO13 and the echo pin to GPIO15 as you can see [here](ESP32-CAM/src/main.cpp#L46).
 
-#### LCD Disply
+#### LCD Display
 
 ## Software Requirement
 
@@ -125,8 +126,6 @@ $ pip install -r requirements.txt
 
 The installation process could need some hour to be complete. After the installation, we need to **restore the swapfile with `100`** by running the same two commands.
 
-After these commands the installation process is terminated.
-
 ## Project Layout!
 
 ```
@@ -173,7 +172,7 @@ When RECOGNITION is enable only if the ultrasonic sensor measure a distance mino
 
 The LCD_DISPLAY macro enable the print on an external display.
 
-Before uploading the code there are some mocros that you have to set:
+Before uploading the code there are some macros that you have to set:
 
 - [WIFI_SSID](ESP32-CAM/src/main.cpp#L13) your wifi network name
 - [WIFI_PSW](ESP32-CAM/src/main.cpp#L15) you wifi password
@@ -213,7 +212,7 @@ Next, run `train_model.py` to train the model on the dataset you created.
 $ python3 train_model.py
 ```
 
-When the training is complete, the file `encoding.pickle` will be created. This file will be used by the recognition script to recognize faces in images.
+When the training is complete, the file `encoding.pickle` will be created. This file will be used to recognize faces.
 
 Now you need to compile the `server_rec.c` and `server_video.c` files:
 
@@ -225,7 +224,7 @@ $ gcc server_video.c -o server_video
 
 ### Server_rec.c
 
-The `server_rec`.c script opens a socket and waits for a connection from a client. When a connection is established, a child process is created to manage the connection.
+The `server_rec.rec` script opens a socket and waits for a connection from a client. When a connection is established, a child process is created to manage the connection.
 
 ```c
 // Accept the data packet from client and verification
@@ -242,7 +241,7 @@ The `server_rec`.c script opens a socket and waits for a connection from a clien
         int fid = fork();
 ```
 
-The child process creates a temporary folder where it saves the image files received from the client. The data bytes are read from the socket and saved as images with the `save_photo()` function. Once the data transmission is complete, the `run_req.py` script is used to recognize faces in the images.
+The child process creates a temporary folder where it saves the image files received from the client. The data bytes are read from the socket and saved as images with the `save_photo()` function. Once the data transmission is complete, the `run_req.py` script is used to recognize faces by matching source images with the `encodings.pickle` file.
 
 ```c
 #define REC_PROGRAM "../facial_req/run_req.py"
@@ -281,11 +280,11 @@ if (fid == 0)
         }
 ```
 
-In the argument of python script a `-d` flag are add to enable the erase of temp folder after recognition. This script read each images with `opencv` and find a match in the trained model. EspCam will send more then a single image, so the result will be the most common result.
+In the argument of python script a `-d` flag are add to enable the erase of temp folder after recognition.
 
 ### Server_video.c
 
-The `server_video` script opens a socket and waits for a connection from a client. When a connection is established, a child process is created. This child process calls `ffmpeg` to create a video from the image bytes received. The child process overwrites `stdin` with the socket stream so that `ffmpeg` can take the image bytes from the input stream
+The `server_video` script opens a socket and waits for a connection from a client. When a connection is established, a child process is created. This child process calls `ffmpeg` to create a video from the image bytes received. The child process overwrites `stdin` with the socket stream so that `ffmpeg` can take the image bytes from the input stream.
 
 ```c
 // If child process
@@ -306,7 +305,7 @@ The `server_video` script opens a socket and waits for a connection from a clien
 
 ### Run_req.py
 
-The `run_req.py` script calls the `recognition()` function on each image in the input folder. The function uses OpenCV to open the image, detect face bounding boxes, and compute matches with the `encodings.pickle` file. The function returns the name of the best matching index.
+The `run_req.py` script calls the `recognition()` function on each image in the input folder. The function uses `OpenCV` to open the image, detect face bounding boxes, and the `face_recognition` library compute matches with the `encodings.pickle` file. The function returns the name of the best matching index.
 
 ```python
 def recognition(path):
@@ -344,7 +343,7 @@ The script returns the most common name returned by the `recognition()` function
 ```python
 for photo in os.listdir(path):
                 try:
-                    names.append(recognition(os.path.join(path, photo)))
+                    names.append(recognition(os.path.join(path, photo)))   # call recognition function for each image
                 except:
                     names.append("Unknown")
                     
@@ -353,7 +352,7 @@ for photo in os.listdir(path):
     counter = collections.Counter(names)
 
     # Print the most common result
-    print(counter.most_common(1)[0][0])
+    print(counter.most_common(1)[0][0]) # compute the most common index
 ```
 ## Acknowledgments
 
