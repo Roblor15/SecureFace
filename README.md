@@ -2,7 +2,6 @@
 
 SecureFace is an application that recognizes a person's identity by their face and creates a short video when motion is detected. When a person comes within 30 cm of the ultrasonic sensor, the camera is activated and takes photos. The Esp32cam integrated with the camera sends the photos over Wi-Fi to a Raspberry device, which uses a recognition function to identify the face and return the result. The LCD then displays the recognized person's name or an error message. Instead if motion is detected using the PIR sensor, a batch of images is sent to the Raspberry server, which creates and stores the video of the suspicious scene.
 
-
 ## Requirements
 
 ### Materials
@@ -15,7 +14,7 @@ For this project we used:
 - Ultrasonic sensor (HC-SR04)
 - LCD Display (1602) with I2C module
 
-If an other version of the board is used you have to modify the cam's pins with the right [ones](ESP32-CAM/src/main.cpp#L61).
+If an other version of the board is used you have to modify the cam's pins with the right [ones](ESP32-CAM/src/main.cpp#L63).
 
 ```c
 #define PWDN_GPIO_NUM 32
@@ -48,7 +47,7 @@ You can modify all the pins we used, but with the esp32cam Ai-Thinker we suggest
 
 You can follow [this guide](http://win.adrirobot.it/sensori/pir_sensor/pir_sensor_hc-sr501_arduino.htm) to set the sensor in auto-reset mode and, if you want, to adjust the sensitivity and the output timing. We used the default values. Connect the output pin to GPIO12.
 
-If you choose another GPIO pin remeber to change also the value of the [bitmask](ESP32-CAM/src/main.cpp#L82).
+If you choose another GPIO pin remeber to change also the value of the [bitmask](ESP32-CAM/src/main.cpp#L84).
 
 #### Ultrasonic Sensor
 
@@ -56,7 +55,7 @@ We simply connected the trigger pin to GPIO13 and the echo pin to GPIO15 as you 
 
 #### LCD Display
 
-In order to use less pins (the pins of the esp32cam were not enough) we used the I2C adapater for the display, that uses only two pins GPIO14 and GPIO2.
+In order to use less pins (the pins of the esp32cam were not enough) we used the I2C adapater for the display, that uses only two pins GPIO14 and GPIO2 (SDA and SCL). The [address](ESP32-CAM/src/main.cpp#L58) of our display is 0x27 but it could be another one, tipically 0x3F.
 
 ## Software Requirement
 
@@ -75,8 +74,12 @@ build_flags =
     -DBOARD_HAS_PSRAM
     -mfix-esp32-psram-cache-issue
     # -DCORE_DEBUG_LEVEL=5        # activate to receive debugging infos
-lib_deps = martinsos/HCSR04@^2.0.0
+lib_deps = 
+    martinsos/HCSR04@^2.0.0
+    marcoschwartz/LiquidCrystal_I2C@^1.1.4
 ```
+
+Otherwise you can use also the [PlatformIO CLI](https://docs.platformio.org/en/stable/core/index.html).
 
 ### Raspberry
 

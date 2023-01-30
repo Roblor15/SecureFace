@@ -38,7 +38,7 @@ int video_count = 0;
 #define PORT_PHOTO 8081
 
 // Distance in centimeters that enbles the face recognition
-#define PHOTO_TRIGGER 30
+#define PHOTO_TRIGGER 40
 // Number of frames per video
 #define N_RECOGNITION_FRAMES 10
 
@@ -54,7 +54,7 @@ int recognition_count = 0;
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
-// Object that contols the LCD display
+// Object that contols the LCD display (address, columns, lines)
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 #endif
@@ -131,8 +131,10 @@ void setup()
 
 #ifdef LCD_DISPLAY
 
-  // Initialise the display
+  // Set pins for I2C: SDA, SCL
   Wire.begin(2, 14);
+
+  // Ititialise the display
   lcd.init();
   lcd.backlight();
   lcd.clear();
@@ -304,7 +306,11 @@ void loop()
     {
       vTaskDelete(task_0);
       log_d("going to sleep");
+
+#ifdef LCD_DISPLAY
       lcd.noBacklight();
+#endif
+
       delay(2000);
       esp_deep_sleep_start();
     }
@@ -339,10 +345,10 @@ void loop()
 #ifdef LCD_DISPLAY
         lcd.clear();
         lcd.print("Going to sleep..");
-#endif
-
         lcd.noBacklight();
         lcd.clear();
+#endif
+
         delay(2000);
         esp_deep_sleep_start();
       }
@@ -361,10 +367,10 @@ void loop()
 #ifdef LCD_DISPLAY
     lcd.clear();
     lcd.print("Going to sleep..");
-#endif
-
     lcd.noBacklight();
     lcd.clear();
+#endif
+
     delay(2000);
     esp_deep_sleep_start();
   }
@@ -377,10 +383,10 @@ void loop()
 #ifdef LCD_DISPLAY
     lcd.clear();
     lcd.print("Going to sleep..");
-#endif
-
     lcd.noBacklight();
     lcd.clear();
+#endif
+
     delay(2000);
     esp_deep_sleep_start();
   }
