@@ -360,6 +360,11 @@ for photo in os.listdir(path):
     # Print the most common result
     print(counter.most_common(1)[0][0]) # compute the most common index
 ```
+## Other material
+[SecureFace Presentation](SecureFace_presentation.pdf)
+
+[SecureFace video](https://www.youtube.com/watch?v=Rwgl8lMb24U&ab_channel=FabioGrotto)
+
 ## Acknowledgments
 
 Students: <a href="https://github.com/enrico-car">Enrico Carnelos</a> - <a href="https://github.com/Roblor15">Roberto Lorenzon</a> - <a href="https://github.com/fabiogr8">Fabio Grotto</a>
