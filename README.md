@@ -172,11 +172,11 @@ The code for the booard is made in a modulare way. You can comment/uncomment the
 #define LCD_DISPLAY
 ```
 
-When VIDEO is enable the camera starts taking photos for the server that makes the video.
+When VIDEO is enabled the camera starts taking photos for the server that makes the video.
 
-When RECOGNITION is enable only if the ultrasonic sensor measure a distance minor than [PHOTO_TRIGGER](ESP32-CAM/src/main.cpp#L41), the camera interrupt the video (if enabled) and start taking photos for the recognition server.
+When RECOGNITION is enabled only if the ultrasonic sensor measures a distance minor than [PHOTO_TRIGGER](ESP32-CAM/src/main.cpp#L41), the camera interrupts the video (if enabled) and starts taking photos for the recognition server.
 
-The LCD_DISPLAY macro enable the print on an external display.
+The LCD_DISPLAY macro enables the print on an external display.
 
 Before uploading the code there are some macros that you have to set:
 
@@ -195,7 +195,7 @@ In VS-code you will see the toolbar shown down here. To upload the code click th
 
 #### CLI
 
-With the terminal go in the [ESP32-CAM](ESP32-CAM/) and run:
+With the terminal go in the [ESP32-CAM](ESP32-CAM/) directory and run:
 
 ```bash
 $ pio run -t upload
