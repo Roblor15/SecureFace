@@ -134,7 +134,7 @@ void setup()
   // Set pins for I2C: SDA, SCL
   Wire.begin(2, 14);
 
-  // Ititialise the display
+  // Initialise the display
   lcd.init();
   lcd.backlight();
   lcd.clear();
